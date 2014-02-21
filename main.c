@@ -30,25 +30,40 @@
     fprintf(stderr, __VA_ARGS__); \
 }
 
+XEvent event;
+Display *disp;
+unsigned long grflags;
+long mask;
+int x, y, new_x, new_y, new_width, new_height;
+XWindowAttributes active_atr;
+XWindowAttributes root_atr;
+
+void move() {
+  event.xclient.message_type = XInternAtom(disp, "_NET_MOVERESIZE_WINDOW", False);
+  event.xclient.data.l[0] = grflags;
+  event.xclient.data.l[1] = (unsigned long)new_x;
+  event.xclient.data.l[2] = (unsigned long)new_y;
+  event.xclient.data.l[3] = (unsigned long)new_width;
+  event.xclient.data.l[4] = (unsigned long)new_height;
+  XSendEvent(disp, DefaultRootWindow(disp), False, mask, &event);
+
+  v_printf("Move: %ux%u @ (%d,%d) in %ux%u\n", new_width, active_atr.height, new_x, new_y, root_atr.width, root_atr.height);
+
+}
+
+
 int main (int argc, char **argv) {
   
   int ret = EXIT_SUCCESS;
-  int x, y, new_x, new_y, new_width, new_height;
   int actual_format_return;
   
   unsigned long nitems_return;
   unsigned long bytes_after_return;
-  unsigned long grflags;
-  long mask;
   
   unsigned char *data;
   
-  Display *disp;
   Window win = (Window)0;
   Window w_dum = (Window)0;
-  XWindowAttributes active_atr;
-  XWindowAttributes root_atr;
-  XEvent event;
   
   // Check we can get the display to avoid looking stupid later
   if (! (disp = XOpenDisplay(NULL))) {
@@ -104,7 +119,8 @@ int main (int argc, char **argv) {
   XFree(data);
 
   // Calculate new X
-  new_x = ( x > root_atr.width/2 ) ? root_atr.width/2 : 0;
+  // Move to the side of the display that the middle of the window is on
+  new_x = ( (x+(active_atr.width/2)) > (root_atr.width/2) ) ? root_atr.width/2 : 0;
     
   // Use root gravity
   grflags = 0;
@@ -113,9 +129,6 @@ int main (int argc, char **argv) {
 
   // Is there a better way to figure out decoration padding?
   new_width = root_atr.width/2 - 8;
-
-  // Height is wrong in this debug printout; oh well
-  v_printf("%ux%u @ (%d,%d) in %ux%u\n", new_width, active_atr.height, new_x, new_y, root_atr.width, root_atr.height);
 	
   grflags |= 0x100; // Move x
   grflags |= 0x200; // Move y
@@ -153,15 +166,9 @@ int main (int argc, char **argv) {
 	
   XSendEvent(disp, DefaultRootWindow(disp), False, mask, &event);
 
-
   // actual move
-  event.xclient.message_type = XInternAtom(disp, "_NET_MOVERESIZE_WINDOW", False);
-  event.xclient.data.l[0] = grflags;
-  event.xclient.data.l[1] = (unsigned long)new_x;
-  event.xclient.data.l[2] = (unsigned long)new_y;
-  event.xclient.data.l[3] = (unsigned long)new_width;
-  event.xclient.data.l[4] = (unsigned long)new_height;
-  XSendEvent(disp, DefaultRootWindow(disp), False, mask, &event);
+  move();
+  
   
   
   // restore maximization state
@@ -176,4 +183,3 @@ int main (int argc, char **argv) {
   
   return ret;
 }
-
